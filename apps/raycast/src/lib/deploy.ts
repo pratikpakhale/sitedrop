@@ -1,3 +1,5 @@
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { Clipboard, getPreferenceValues, open, showHUD, showToast, Toast } from '@raycast/api'
 import { collect } from '@sitedrop/core/disk'
 import { prepare } from '@sitedrop/core/prepare'
@@ -9,6 +11,10 @@ type DeployOptions = { name?: string; force?: boolean }
 
 class MissingIndex extends Error {}
 
+function expandHome(path: string): string {
+  return path === '~' || path.startsWith('~/') ? join(homedir(), path.slice(1)) : path
+}
+
 export async function deploy(paths: string[], options: DeployOptions = {}): Promise<void> {
   const { endpoint: rawEndpoint, password, openInBrowser } = getPreferenceValues<Prefs>()
   const endpoint = rawEndpoint.replace(/\/+$/, '')
@@ -16,7 +22,7 @@ export async function deploy(paths: string[], options: DeployOptions = {}): Prom
   const toast = await showToast({ style: Toast.Style.Animated, title: 'Reading files' })
 
   try {
-    const selection = prepare(await collect(paths))
+    const selection = prepare(await collect(paths.map(expandHome)))
     if (selection.files.length === 0) throw new Error('Nothing publishable in that selection')
     if (!selection.hasIndex && !options.force) throw new MissingIndex()
 

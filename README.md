@@ -51,14 +51,17 @@ sitedrop report.html chart.png       # loose files
 sitedrop ./assets --force            # publish without an index.html
 ```
 
-From Raycast: **Deploy Selected Finder Items** publishes whatever Finder has selected,
-copies the link and opens the site. Bind it to a hotkey. **Deploy** does the same from a
-file picker. A selection with no `index.html` fails with a *Publish Anyway* action on the
-toast. Set the endpoint and password in the extension's preferences.
+From Raycast, the **Deploy** command publishes a path, the Finder selection, or files
+picked from a dialog, in that order of preference. The path may be a file, a folder, or
+a zip, with `~` expanded; leave it blank and the Finder selection is used, and with
+nothing selected there a file picker opens. The second argument names the subdomain.
+Publishing something without an `index.html` fails with a *Publish Anyway* action on the
+toast. The link is copied and the site opens in a browser. Set the endpoint and password
+in the extension's preferences.
 
 `bun run --cwd apps/raycast dev` registers the extension with Raycast and watches for
-changes; it must run once before Raycast knows the extension exists. `package` rebuilds
-it in place, minified, without the watcher.
+changes; it must run once, against a logged-in `ray` CLI, before Raycast knows the
+extension exists. `package` rebuilds it in place, minified, without the watcher.
 
 The endpoint and password come from `--endpoint`/`--password` or the
 `SITEDROP_ENDPOINT`/`SITEDROP_PASSWORD` environment variables. Redeploying the same

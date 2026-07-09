@@ -10,12 +10,18 @@
   "categories": ["Developer Tools"],
   "commands": [
     {
-      "name": "deploy-finder",
-      "title": "Deploy Selected Finder Items",
+      "name": "deploy",
+      "title": "Deploy",
       "subtitle": "SiteDrop",
-      "description": "Publish whatever is selected in Finder and open the live site.",
-      "mode": "no-view",
+      "description": "Publish a path, the Finder selection, or files you pick.",
+      "mode": "view",
       "arguments": [
+        {
+          "name": "path",
+          "type": "text",
+          "placeholder": "file, folder, or zip",
+          "required": false
+        },
         {
           "name": "name",
           "type": "text",
@@ -23,13 +29,6 @@
           "required": false
         }
       ]
-    },
-    {
-      "name": "deploy",
-      "title": "Deploy",
-      "subtitle": "SiteDrop",
-      "description": "Pick files, a folder, or a zip to publish.",
-      "mode": "view"
     }
   ],
   "preferences": [
