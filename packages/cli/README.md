@@ -1,6 +1,6 @@
 # sitedrop
 
-Publish static files to a subdomain of a [sitedrop](https://github.com/pratikpakhale/site) deployment.
+Publish static files to a subdomain of a [sitedrop](https://github.com/pratikpakhale/sitedrop) deployment.
 
 ```bash
 npx sitedrop ./dist                  # folder, random subdomain
