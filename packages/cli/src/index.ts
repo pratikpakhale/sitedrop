@@ -1,10 +1,7 @@
-import { readdir, readFile, stat } from 'node:fs/promises'
-import { basename, join, sep } from 'node:path'
 import { parseArgs } from 'node:util'
-import { prepare, type PublishFile } from '@sitedrop/core/prepare'
+import { collect } from '@sitedrop/core/disk'
+import { prepare } from '@sitedrop/core/prepare'
 import { publishSite, requestName } from '@sitedrop/core/publish'
-import { stripCommonRoot } from '@sitedrop/core/tree'
-import { filesFromZip, isZip } from '@sitedrop/core/zip'
 import { version } from '../package.json'
 
 const USAGE = `sitedrop — publish static files to a subdomain
@@ -24,45 +21,6 @@ Options
   -h, --help
   -v, --version
 `
-
-async function collectDirectory(root: string): Promise<PublishFile[]> {
-  const entries = await readdir(root, { recursive: true })
-  const files: PublishFile[] = []
-
-  for (const entry of entries) {
-    const absolute = join(root, entry)
-    if (!(await stat(absolute)).isFile()) continue
-
-    files.push({
-      relPath: entry.split(sep).join('/'),
-      body: new Blob([await readFile(absolute)]),
-    })
-  }
-
-  return files
-}
-
-async function collect(sources: string[]): Promise<PublishFile[]> {
-  const files: PublishFile[] = []
-
-  for (const source of sources) {
-    if ((await stat(source)).isDirectory()) {
-      files.push(...stripCommonRoot(await collectDirectory(source)))
-    } else if (isZip(source)) {
-      files.push(...filesFromZip(new Uint8Array(await readFile(source))))
-    } else {
-      files.push({ relPath: basename(source), body: new Blob([await readFile(source)]) })
-    }
-  }
-
-  const seen = new Set<string>()
-  for (const { relPath } of files) {
-    if (seen.has(relPath)) throw new Error(`Sources collide at ${relPath}; publish them separately.`)
-    seen.add(relPath)
-  }
-
-  return files
-}
 
 function bail(message: string): never {
   console.error(message)

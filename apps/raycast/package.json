@@ -1,0 +1,76 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "sitedrop-raycast",
+  "title": "SiteDrop",
+  "description": "Drop a folder, a zip, or a few files and get a live site on a subdomain.",
+  "icon": "icon.png",
+  "author": "pratikpakhale",
+  "license": "MIT",
+  "platforms": ["macOS"],
+  "categories": ["Developer Tools"],
+  "commands": [
+    {
+      "name": "deploy-finder",
+      "title": "Deploy Selected Finder Items",
+      "subtitle": "SiteDrop",
+      "description": "Publish whatever is selected in Finder and open the live site.",
+      "mode": "no-view",
+      "arguments": [
+        {
+          "name": "name",
+          "type": "text",
+          "placeholder": "subdomain",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "deploy",
+      "title": "Deploy",
+      "subtitle": "SiteDrop",
+      "description": "Pick files, a folder, or a zip to publish.",
+      "mode": "view"
+    }
+  ],
+  "preferences": [
+    {
+      "name": "endpoint",
+      "title": "Endpoint",
+      "description": "Origin of the drop service.",
+      "type": "textfield",
+      "placeholder": "https://site.example.com",
+      "required": true
+    },
+    {
+      "name": "password",
+      "title": "Password",
+      "description": "The shared publish secret.",
+      "type": "password",
+      "required": true
+    },
+    {
+      "name": "openInBrowser",
+      "label": "Open the site after deploying",
+      "title": "After Deploy",
+      "description": "The link is copied to the clipboard either way.",
+      "type": "checkbox",
+      "default": true,
+      "required": false
+    }
+  ],
+  "dependencies": {
+    "@raycast/api": "^1.104.0",
+    "@sitedrop/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.2.0",
+    "typescript": "^5.7.0"
+  },
+  "scripts": {
+    "dev": "ray develop",
+    "build": "ray build -e dist --skip-types -o dist",
+    "package": "ray build -e dist --skip-types",
+    "typecheck": "tsc --noEmit"
+  }
+}

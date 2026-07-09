@@ -5,6 +5,7 @@ dist
 .vercel
 *.tsbuildinfo
 next-env.d.ts
+raycast-env.d.ts
 .DS_Store
 .env*
 !.env.example

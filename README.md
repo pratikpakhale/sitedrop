@@ -12,9 +12,10 @@ Files live in Vercel Blob; a Next.js proxy maps `<name>.site.pakhale.com` onto
 Turborepo with bun workspaces:
 
 - `apps/web` — the Next.js app: drop page, `/sites`, API routes, proxy.
+- `apps/raycast` — the Raycast extension.
 - `packages/core` — the shared protocol: prepare, publish, keys, mime,
   subdomain rules. TypeScript source, no build step; the web app transpiles
-  it, the CLI bundles it.
+  it, the CLI and the extension bundle it.
 - `packages/cli` — the `sitedrop` npm package. Bundled to a single
   dependency-free file that runs on node >= 20.
 
@@ -49,6 +50,15 @@ sitedrop ./site.zip                  # a zip
 sitedrop report.html chart.png       # loose files
 sitedrop ./assets --force            # publish without an index.html
 ```
+
+From Raycast: **Deploy Selected Finder Items** publishes whatever Finder has selected,
+copies the link and opens the site. Bind it to a hotkey. **Deploy** does the same from a
+file picker. A selection with no `index.html` fails with a *Publish Anyway* action on the
+toast. Set the endpoint and password in the extension's preferences.
+
+`bun run --cwd apps/raycast dev` registers the extension with Raycast and watches for
+changes; it must run once before Raycast knows the extension exists. `package` rebuilds
+it in place, minified, without the watcher.
 
 The endpoint and password come from `--endpoint`/`--password` or the
 `SITEDROP_ENDPOINT`/`SITEDROP_PASSWORD` environment variables. Redeploying the same
