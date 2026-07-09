@@ -1,0 +1,28 @@
+{
+  "name": "sitedrop",
+  "version": "0.1.0",
+  "description": "Drop a folder or a .zip, get a live static site on a subdomain.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pratikpakhale/site.git",
+    "directory": "packages/cli"
+  },
+  "type": "module",
+  "bin": {
+    "sitedrop": "./dist/index.js"
+  },
+  "files": ["dist"],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "bun build src/index.ts --target=node --format=esm --minify --banner='#!/usr/bin/env node' --outfile=dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@sitedrop/core": "workspace:*",
+    "@types/node": "^22.15.0",
+    "typescript": "^5.7.0"
+  }
+}

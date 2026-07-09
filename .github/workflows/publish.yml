@@ -1,0 +1,37 @@
+name: publish
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  npm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: tag matches package version
+        run: |
+          version=$(node -p "require('./packages/cli/package.json').version")
+          [ "$GITHUB_REF_NAME" = "v$version" ] || {
+            echo "tag $GITHUB_REF_NAME does not match cli version v$version"
+            exit 1
+          }
+      - run: bun install --frozen-lockfile
+      - run: bun run --cwd packages/cli typecheck
+      - run: bun run --cwd packages/cli build
+      - run: node packages/cli/dist/index.js --version
+      - run: npm publish --provenance --access public
+        working-directory: packages/cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

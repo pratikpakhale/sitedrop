@@ -1,7 +1,7 @@
 node_modules
 .next
-.env
-.env.local
+.turbo
+dist
 .vercel
 *.tsbuildinfo
 next-env.d.ts

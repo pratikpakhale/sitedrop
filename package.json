@@ -1,26 +1,21 @@
 {
-  "name": "site-drop",
-  "version": "0.1.0",
+  "name": "sitedrop-monorepo",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "typecheck": "tsc --noEmit",
-    "drop": "bun run scripts/drop.ts"
-  },
-  "dependencies": {
-    "@vercel/blob": "2.6.1",
-    "fflate": "^0.8.3",
-    "next": "16.2.10",
-    "react": "19.2.7",
-    "react-dom": "19.2.7"
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "typecheck": "turbo typecheck",
+    "drop": "bun packages/cli/src/index.ts",
+    "release": "sh scripts/release.sh"
   },
   "devDependencies": {
-    "@types/node": "^22.15.0",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
+    "turbo": "^2.5.0",
     "typescript": "^5.7.0"
-  }
+  },
+  "packageManager": "bun@1.2.4"
 }
