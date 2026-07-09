@@ -34,6 +34,8 @@ const BASE_TYPES: Record<string, string> = {
   xml: 'application/xml',
 }
 
+const FALLBACK_TYPE = 'application/octet-stream'
+
 const NEEDS_CHARSET = new Set([
   'css',
   'csv',
@@ -57,7 +59,13 @@ export function extensionOf(pathname: string): string | null {
   return base.slice(dot + 1).toLowerCase()
 }
 
-export function isAllowedFile(pathname: string): boolean {
+/**
+ * Every file type is publishable. Unknown extensions fall back to
+ * `application/octet-stream`, which the browser downloads rather than renders —
+ * combined with `nosniff` on the serving route, an unrecognised upload can never
+ * be coerced into executing as markup.
+ */
+export function isKnownType(pathname: string): boolean {
   const ext = extensionOf(pathname)
   return ext !== null && ext in BASE_TYPES
 }
@@ -65,7 +73,7 @@ export function isAllowedFile(pathname: string): boolean {
 /** Stored on the blob and pinned via `allowedContentTypes`, so it must match the client exactly. */
 export function baseContentTypeFor(pathname: string): string {
   const ext = extensionOf(pathname)
-  return (ext && BASE_TYPES[ext]) || 'application/octet-stream'
+  return (ext && BASE_TYPES[ext]) || FALLBACK_TYPE
 }
 
 /** Sent to browsers. Always derived from the extension, never from the stored blob metadata. */
@@ -79,4 +87,4 @@ export function looksLikeFile(segment: string): boolean {
   return extensionOf(segment) !== null
 }
 
-export const ALLOWED_EXTENSIONS = Object.keys(BASE_TYPES).sort()
+export const KNOWN_EXTENSIONS = Object.keys(BASE_TYPES).sort()

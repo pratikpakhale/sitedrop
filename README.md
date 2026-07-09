@@ -28,8 +28,9 @@ visitor ──▶ <name>.site.pakhale.com ──▶ proxy.ts rewrites to /s/<nam
 
 ## Publishing
 
-Web UI at the apex: drop a folder or a `.zip`, enter the password, publish.
-Leave the subdomain blank to get a random one.
+`/` is the drop page: drop a folder or a `.zip`, publish. `/sites` manages what
+is already live — live previews, rename, delete. The password is checked against
+`/api/sites` once and then kept in `localStorage`.
 
 From the terminal:
 
@@ -37,6 +38,7 @@ From the terminal:
 bun run drop ./dist              # random subdomain
 bun run drop ./dist my-demo      # explicit subdomain
 bun run drop ./site.zip          # zip works too
+bun run drop ./assets --force    # publish without an index.html
 ```
 
 Redeploying the same subdomain replaces the site and prunes files that are no
@@ -44,17 +46,39 @@ longer part of it.
 
 ## Rules
 
-- A site must have `index.html` at its root. A wrapper folder (`dist/index.html`)
-  is stripped automatically, in both folders and archives.
-- `/about` resolves to `about.html`, then `about/index.html`. A root `404.html`
-  is served for misses, with a 404 status.
-- Only the extensions in `lib/mime.ts` are accepted. Anything else is reported
-  as unsupported rather than silently dropped.
+- Every file type is accepted. Known extensions get a real content type; the rest
+  are served as `application/octet-stream`, which browsers download rather than
+  render. Nothing is ever sniffed.
+- A lone `.html` file at the root is renamed to `index.html`. Two root-level
+  pages are ambiguous, and a nested page would have its relative links broken by
+  the move, so neither is promoted.
+- Without a root `index.html` the site root 404s. Publishing that way needs an
+  explicit opt-in: the checkbox in the UI, `--force` on the CLI, `force: true` on
+  `/api/commit`. This mirrors the `-f`/`--force` convention in [clig.dev].
+- A wrapper folder (`dist/index.html`) is stripped automatically, in both folders
+  and archives.
+- `/about` resolves to `about.html`, then `about/index.html`, then a literal
+  `about`. A root `404.html` is served for misses, with a 404 status.
 - Dot-files are never uploaded, so a stray `.env` or `.git/` in a dragged folder
   cannot leak. Dot-*directories* are allowed, which keeps `.well-known/` usable.
 - Reserved subdomains (`www`, `api`, …) are rejected; see `lib/config.ts`.
-- Responses are served with a content type derived from the file extension and
-  `X-Content-Type-Options: nosniff` — never from the stored blob metadata.
+
+[clig.dev]: https://clig.dev/
+
+## Renaming
+
+Blob has no directory move, so `PATCH /api/sites/<name>` renames every key under
+the prefix, eight at a time. `rename` copies before deleting and leaves the
+source alone if the copy fails, so an error mid-flight strands the site across
+both prefixes rather than losing files. Re-running the rename finishes the job.
+
+## Previews
+
+`/sites` frames each live site in a sandboxed iframe rendered at 4× the card and
+scaled down, so the page sees a desktop viewport. The sandbox withholds
+`allow-same-origin`, which drops the frame into an opaque origin with no access
+to cookies or storage. The frame URL carries the site's `updatedAt` as a query
+param so a republish busts the CDN copy.
 
 ## Caching
 

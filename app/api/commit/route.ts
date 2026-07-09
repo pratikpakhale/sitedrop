@@ -2,12 +2,12 @@ import { assertAuthorized, errorResponse } from '@/lib/auth'
 import { MAX_FILES_PER_SITE } from '@/lib/config'
 import { deletePathnames, listAll } from '@/lib/blob'
 import { normalizeRelPath, siteKey, sitePrefix } from '@/lib/keys'
-import { isAllowedFile } from '@/lib/mime'
+import { INDEX } from '@/lib/publish'
 import { validateSubdomain } from '@/lib/subdomain'
 
 export const runtime = 'nodejs'
 
-type CommitRequest = { subdomain?: unknown; relPaths?: unknown }
+type CommitRequest = { subdomain?: unknown; relPaths?: unknown; force?: unknown }
 
 /**
  * Closes out a publish: everything under the site's prefix that was not part of
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   try {
     assertAuthorized(request)
 
-    const { subdomain, relPaths } = (await request.json()) as CommitRequest
+    const { subdomain, relPaths, force } = (await request.json()) as CommitRequest
 
     if (typeof subdomain !== 'string') throw new Error('subdomain is required')
     const invalid = validateSubdomain(subdomain)
@@ -34,12 +34,12 @@ export async function POST(request: Request) {
     for (const entry of relPaths) {
       if (typeof entry !== 'string') throw new Error('relPaths must contain only strings')
       const relPath = normalizeRelPath(entry)
-      if (!relPath || !isAllowedFile(relPath)) throw new Error(`Invalid path: ${entry}`)
+      if (!relPath) throw new Error(`Invalid path: ${entry}`)
       keep.add(siteKey(subdomain, relPath))
     }
 
-    if (!keep.has(siteKey(subdomain, 'index.html'))) {
-      throw new Error('A site must include an index.html at its root')
+    if (force !== true && !keep.has(siteKey(subdomain, INDEX))) {
+      throw new Error(`No ${INDEX} at the root. Send force: true to publish without a landing page.`)
     }
 
     const existing = await listAll(sitePrefix(subdomain))

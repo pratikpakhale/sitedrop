@@ -1,14 +1,16 @@
 #!/usr/bin/env bun
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { join, sep } from 'node:path'
-import { partition, publishSite, requestName, type PublishFile } from '../lib/publish'
+import { prepare, publishSite, requestName, type PublishFile } from '../lib/publish'
 import { stripCommonRoot } from '../lib/tree'
 import { filesFromZip, isZip } from '../lib/zip'
 
 const USAGE = `
-  bun run drop <folder|zip> [subdomain]
+  bun run drop <folder|zip> [subdomain] [--force]
 
   Omit the subdomain and a random one is generated.
+  A lone .html file at the root is renamed to index.html automatically.
+  --force publishes even when there is no index.html; the root will 404.
 
   Environment (bun reads .env.local automatically):
     DROP_ENDPOINT   https://site.pakhale.com
@@ -38,7 +40,10 @@ async function collect(source: string): Promise<PublishFile[]> {
   return stripCommonRoot(await collectDirectory(source))
 }
 
-const [source, requested] = process.argv.slice(2)
+const argv = process.argv.slice(2)
+const force = argv.includes('--force') || argv.includes('-f')
+const [source, requested] = argv.filter((arg) => !arg.startsWith('-'))
+
 const rawEndpoint = process.env.DROP_ENDPOINT
 const password = process.env.DROP_PASSWORD
 
@@ -54,19 +59,26 @@ if (!rawEndpoint || !password) {
 const endpoint = rawEndpoint.replace(/\/+$/, '')
 
 try {
-  const selection = partition(await collect(source))
+  const selection = prepare(await collect(source))
 
-  for (const path of selection.rejected) console.warn(`  skipped (unsupported type): ${path}`)
-  if (selection.publishable.length === 0) throw new Error(`No publishable files in ${source}`)
+  for (const path of selection.rejected) console.warn(`  skipped (unsafe path): ${path}`)
+  if (selection.files.length === 0) throw new Error(`No publishable files in ${source}`)
+
+  if (selection.promoted) console.log(`Renaming ${selection.promoted} → index.html`)
+  if (!selection.hasIndex && !force) {
+    throw new Error('No index.html at the root. Re-run with --force to publish without a landing page.')
+  }
+  if (!selection.hasIndex) console.warn('Warning: no index.html — the site root will return 404.')
 
   const subdomain = requested ?? (await requestName(endpoint, password))
-  console.log(`Publishing ${selection.publishable.length} files from ${source} → ${subdomain}`)
+  console.log(`Publishing ${selection.files.length} files from ${source} → ${subdomain}`)
 
   const result = await publishSite({
     endpoint,
     password,
     subdomain,
-    files: selection.publishable,
+    force,
+    files: selection.files,
     onProgress: ({ done, total, relPath }) => {
       console.log(`  [${String(done).padStart(String(total).length)}/${total}] ${relPath}`)
     },

@@ -2,7 +2,7 @@ import { handleUpload, type HandleUploadBody } from '@vercel/blob/client'
 import { assertAuthorized, errorResponse } from '@/lib/auth'
 import { MAX_FILE_BYTES } from '@/lib/config'
 import { parseSiteKey } from '@/lib/keys'
-import { baseContentTypeFor, isAllowedFile } from '@/lib/mime'
+import { baseContentTypeFor } from '@/lib/mime'
 import { validateSubdomain } from '@/lib/subdomain'
 
 export const runtime = 'nodejs'
@@ -32,10 +32,6 @@ export async function POST(request: Request) {
 
         const invalid = validateSubdomain(parsed.subdomain)
         if (invalid) throw new Error(`Subdomain "${parsed.subdomain}" is ${invalid}`)
-
-        if (!isAllowedFile(parsed.relPath)) {
-          throw new Error(`File type not allowed: ${parsed.relPath}`)
-        }
 
         return {
           addRandomSuffix: false,

@@ -1,4 +1,8 @@
-import { del, list, type ListBlobResultBlob } from '@vercel/blob'
+import { del, list, rename, type ListBlobResultBlob } from '@vercel/blob'
+import { parseSiteKey, siteKey, sitePrefix } from './keys'
+import { baseContentTypeFor } from './mime'
+
+const RENAME_CONCURRENCY = 8
 
 let originCache: Promise<string> | null = null
 
@@ -47,4 +51,35 @@ export async function deletePathnames(pathnames: string[]): Promise<void> {
   for (let i = 0; i < pathnames.length; i += 100) {
     await del(pathnames.slice(i, i + 100))
   }
+}
+
+async function pool<T>(items: T[], limit: number, work: (item: T) => Promise<void>): Promise<void> {
+  let next = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) await work(items[next++]!)
+  })
+  await Promise.all(workers)
+}
+
+/**
+ * Blob has no directory move, so each key is renamed individually. `rename`
+ * leaves the source in place if its copy fails, so a mid-flight error strands
+ * the site across both prefixes rather than losing files.
+ */
+export async function renameSite(from: string, to: string): Promise<number> {
+  const blobs = await listAll(sitePrefix(from))
+
+  await pool(blobs, RENAME_CONCURRENCY, async (blob) => {
+    const parsed = parseSiteKey(blob.pathname)
+    if (!parsed) return
+
+    await rename(blob.pathname, siteKey(to, parsed.relPath), {
+      access: 'public',
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: baseContentTypeFor(parsed.relPath),
+    })
+  })
+
+  return blobs.length
 }

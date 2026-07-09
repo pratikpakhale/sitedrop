@@ -11,14 +11,19 @@ const FORWARDED_RESPONSE_HEADERS = ['etag', 'content-length', 'content-range', '
 
 type Context = { params: Promise<{ subdomain: string; path?: string[] }> }
 
-/** `/about` may be stored as `about.html` or `about/index.html`; `/` is always `index.html`. */
+/**
+ * `/about` may be stored as `about.html` or `about/index.html`; `/` is always
+ * `index.html`. An extensionless path is tried literally too, but last, so the
+ * pretty-URL lookups stay on the fast path and an uploaded `LICENSE` still
+ * resolves.
+ */
 function candidatesFor(relPath: string): string[] {
   if (relPath === '') return ['index.html']
 
   const lastSegment = relPath.split('/').pop() ?? ''
   if (looksLikeFile(lastSegment)) return [relPath]
 
-  return [`${relPath}.html`, `${relPath}/index.html`]
+  return [`${relPath}.html`, `${relPath}/index.html`, relPath]
 }
 
 async function fetchBlob(request: Request, origin: string, key: string): Promise<Response | null> {

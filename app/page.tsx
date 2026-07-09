@@ -1,65 +1,47 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react'
 import { filesFromDataTransfer, filesFromFileList } from '@/lib/browser-files'
 import { ROOT_DOMAIN } from '@/lib/config'
-import { partition, publishSite, requestName, type Partitioned } from '@/lib/publish'
-import type { SiteSummary } from '@/lib/types'
+import { prepare, publishSite, requestName, type Prepared, type PublishFile } from '@/lib/publish'
+import { usePassword } from '@/lib/use-password'
+import { Archive, Check, External, Folder, LogoMark, Shuffle, Wand, Warning, X } from './icons'
+import { Alert, CopyLink, formatBytes, Gate, Header, plural, siteUrl } from './ui'
 
-type Status = { tone: 'idle' | 'error' | 'ok'; message: string }
+type Progress = { done: number; total: number; relPath: string }
+type Result = { subdomain: string; files: number; pruned: number }
 
-const IS_LOCAL = ROOT_DOMAIN.startsWith('localhost')
-const IDLE: Status = { tone: 'idle', message: '' }
-
-function siteUrl(subdomain: string): string {
-  return `${IS_LOCAL ? 'http' : 'https'}://${subdomain}.${ROOT_DOMAIN}`
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-}
-
-function describe(selection: Partitioned): string {
-  const parts = [`${selection.publishable.length} files`]
-  if (selection.ignored.length > 0) parts.push(`${selection.ignored.length} ignored`)
-  if (selection.rejected.length > 0) parts.push(`${selection.rejected.length} unsupported`)
-  return parts.join(' · ')
-}
-
-export default function Home() {
+export default function Drop() {
+  const { password, restoring, unlock, lock } = usePassword()
   const folderInput = useRef<HTMLInputElement>(null)
   const zipInput = useRef<HTMLInputElement>(null)
 
-  const [password, setPassword] = useState('')
   const [subdomain, setSubdomain] = useState('')
-  const [selection, setSelection] = useState<Partitioned | null>(null)
-  const [status, setStatus] = useState<Status>(IDLE)
+  const [selection, setSelection] = useState<Prepared | null>(null)
+  const [allowNoIndex, setAllowNoIndex] = useState(false)
+  const [progress, setProgress] = useState<Progress | null>(null)
+  const [result, setResult] = useState<Result | null>(null)
+  const [error, setError] = useState('')
   const [dragging, setDragging] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [sites, setSites] = useState<SiteSummary[] | null>(null)
+
+  const busy = progress !== null
 
   useEffect(() => {
     folderInput.current?.setAttribute('webkitdirectory', '')
     folderInput.current?.setAttribute('directory', '')
-  }, [])
+  }, [password])
 
-  function fail(error: unknown) {
-    setStatus({ tone: 'error', message: error instanceof Error ? error.message : 'Something went wrong' })
+  function fail(cause: unknown) {
+    setError(cause instanceof Error ? cause.message : 'Something went wrong')
   }
 
-  async function loadSites(secret: string) {
-    const response = await fetch('/api/sites', { headers: { authorization: `Bearer ${secret}` } })
-    const payload = (await response.json()) as { sites?: SiteSummary[]; error?: string }
-    if (!response.ok) throw new Error(payload.error ?? 'Could not load sites')
-    setSites(payload.sites ?? [])
-  }
-
-  function accept(files: Awaited<ReturnType<typeof filesFromFileList>>) {
-    const next = partition(files)
+  function accept(files: PublishFile[]) {
+    const next = prepare(files)
     setSelection(next)
-    setStatus(next.publishable.length === 0 ? { tone: 'error', message: 'Nothing publishable in there' } : IDLE)
+    setAllowNoIndex(false)
+    setResult(null)
+    setError(next.files.length === 0 ? 'Nothing publishable in there' : '')
   }
 
   async function onDrop(event: DragEvent) {
@@ -69,8 +51,8 @@ export default function Home() {
 
     try {
       accept(await filesFromDataTransfer(event.dataTransfer))
-    } catch (error) {
-      fail(error)
+    } catch (cause) {
+      fail(cause)
     }
   }
 
@@ -78,69 +60,58 @@ export default function Home() {
     if (!input.files?.length) return
     try {
       accept(await filesFromFileList(input.files))
-    } catch (error) {
-      fail(error)
-    }
-  }
-
-  async function generateName() {
-    try {
-      setSubdomain(await requestName('', password))
-    } catch (error) {
-      fail(error)
+    } catch (cause) {
+      fail(cause)
     }
   }
 
   async function onPublish(event: FormEvent) {
     event.preventDefault()
-    if (!selection?.publishable.length || busy) return
+    if (!password || !selection?.files.length || busy) return
 
-    setBusy(true)
-    setStatus({ tone: 'idle', message: 'Preparing…' })
+    const force = !selection.hasIndex
+    setError('')
+    setResult(null)
+    setProgress({ done: 0, total: selection.files.length, relPath: '' })
 
     try {
       const target = subdomain || (await requestName('', password))
-      setSubdomain(target)
 
-      const result = await publishSite({
+      const published = await publishSite({
         password,
+        force,
         subdomain: target,
-        files: selection.publishable,
-        onProgress: ({ done, total, relPath }) =>
-          setStatus({ tone: 'idle', message: `Uploading ${done}/${total} — ${relPath}` }),
+        files: selection.files,
+        onProgress: setProgress,
       })
 
-      setStatus({ tone: 'ok', message: `Live at ${siteUrl(target)} — ${result.pruned} pruned` })
-      await loadSites(password).catch(() => undefined)
-    } catch (error) {
-      fail(error)
+      setSubdomain('')
+      setSelection(null)
+      setResult(published)
+    } catch (cause) {
+      fail(cause)
     } finally {
-      setBusy(false)
+      setProgress(null)
     }
   }
 
-  async function onDelete(target: string) {
-    if (!confirm(`Delete ${target}.${ROOT_DOMAIN} and all of its files?`)) return
+  if (restoring) return <main />
+  if (!password) return <Gate onUnlock={unlock} />
 
-    try {
-      const response = await fetch(`/api/sites/${target}`, {
-        method: 'DELETE',
-        headers: { authorization: `Bearer ${password}` },
-      })
-      const payload = (await response.json()) as { error?: string }
-      if (!response.ok) throw new Error(payload.error ?? 'Delete failed')
-      await loadSites(password)
-    } catch (error) {
-      fail(error)
-    }
-  }
+  const blocked = !!selection && !selection.hasIndex && !allowNoIndex
+  const canPublish = !busy && !!selection?.files.length && !blocked
 
-  const canPublish = !busy && !!password && !!selection?.publishable.length
+  const label = progress
+    ? `Uploading ${progress.done}/${progress.total}`
+    : selection?.promoted
+      ? 'Rename & publish'
+      : selection && !selection.hasIndex
+        ? 'Publish anyway'
+        : 'Publish'
 
   return (
     <main>
-      <h1>site drop</h1>
-      <p className="sub">Drop a folder or a .zip. It goes live on a subdomain of {ROOT_DOMAIN}.</p>
+      <Header subtitle={`Drop a folder or a .zip. It goes live on ${ROOT_DOMAIN}.`} onLock={lock} />
 
       <form className="panel" onSubmit={onPublish}>
         <div
@@ -152,99 +123,152 @@ export default function Home() {
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
         >
+          <div className="pulse">{selection ? <Check size={20} /> : <Folder size={20} />}</div>
+
           {selection ? (
             <>
-              <strong>{describe(selection)}</strong>
-              {selection.rejected.length > 0 && (
-                <span className="rejects">Unsupported: {selection.rejected.slice(0, 4).join(', ')}</span>
-              )}
+              <strong>{plural(selection.files.length, 'file')}</strong>
+              <span className="hint">{formatBytes(selection.bytes)} ready to publish</span>
             </>
           ) : (
             <>
               <strong>Drop a folder or .zip here</strong>
-              <span>must contain an index.html at its root</span>
+              <span className="hint">any file type · a lone .html becomes your index</span>
             </>
           )}
 
           <div className="picks">
             <button type="button" className="ghost" onClick={() => folderInput.current?.click()}>
-              Choose folder
+              <Folder size={14} />
+              Folder
             </button>
             <button type="button" className="ghost" onClick={() => zipInput.current?.click()}>
-              Choose .zip
+              <Archive size={14} />
+              Zip
             </button>
+            {selection && (
+              <button type="button" className="ghost" onClick={() => setSelection(null)}>
+                <X size={14} />
+                Clear
+              </button>
+            )}
           </div>
         </div>
 
         <input ref={folderInput} type="file" multiple hidden onChange={(e) => onPick(e.currentTarget)} />
         <input ref={zipInput} type="file" accept=".zip" hidden onChange={(e) => onPick(e.currentTarget)} />
 
-        <div className="field">
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            autoComplete="current-password"
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-        </div>
+        {selection && (selection.promoted || selection.ignored.length > 0 || selection.rejected.length > 0) && (
+          <div className="notes">
+            {selection.promoted && (
+              <p className="note accent">
+                <Wand size={14} />
+                <span>
+                  <code>{selection.promoted}</code> will be renamed to <code>index.html</code>
+                </span>
+              </p>
+            )}
+            {selection.ignored.length > 0 && (
+              <p className="note">
+                <X size={14} />
+                {plural(selection.ignored.length, 'dot-file')} and build artefact(s) ignored
+              </p>
+            )}
+            {selection.rejected.map((path) => (
+              <p className="note warn" key={path}>
+                <Warning size={14} />
+                <span>
+                  Skipped unsafe path: <code>{path}</code>
+                </span>
+              </p>
+            ))}
+          </div>
+        )}
+
+        {selection && !selection.hasIndex && (
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={allowNoIndex}
+              onChange={(event) => setAllowNoIndex(event.target.checked)}
+            />
+            <span>
+              No <code>index.html</code> at the root, so the site root will return 404. Publish anyway.
+            </span>
+          </label>
+        )}
 
         <div className="field">
           <label htmlFor="subdomain">Subdomain</label>
-          <div className="row">
+          <div className="combo">
             <input
               id="subdomain"
               type="text"
               value={subdomain}
-              placeholder="leave blank for a random name"
+              placeholder="random name"
               spellCheck={false}
+              autoComplete="off"
               onChange={(event) => setSubdomain(event.target.value.toLowerCase())}
             />
-            <button type="button" className="ghost" disabled={!password} onClick={generateName}>
-              Random
+            <span className="suffix">.{ROOT_DOMAIN}</span>
+            <button
+              type="button"
+              className="icon-btn"
+              title="Generate a random name"
+              disabled={busy}
+              onClick={() => requestName('', password).then(setSubdomain).catch(fail)}
+            >
+              <Shuffle size={15} />
             </button>
           </div>
-          {subdomain && <div className="host">{siteUrl(subdomain)}</div>}
         </div>
 
         <button className="primary" type="submit" disabled={!canPublish}>
-          {busy ? 'Publishing…' : 'Publish'}
+          {!busy && (selection?.promoted ? <Wand size={16} /> : <LogoMark size={16} />)}
+          {label}
         </button>
 
-        {status.message && (
-          <div className={`status ${status.tone === 'idle' ? '' : status.tone}`}>{status.message}</div>
+        {progress && (
+          <div className="progress">
+            <div className="track">
+              <div className="fill" style={{ width: `${(progress.done / progress.total) * 100}%` }} />
+            </div>
+            <div className="progress-label">
+              <span>{progress.relPath || 'preparing…'}</span>
+              <span>
+                {progress.done}/{progress.total}
+              </span>
+            </div>
+          </div>
         )}
-      </form>
 
-      <section className="sites">
-        <div className="sites-head">
-          <h2>Sites</h2>
-          <button className="ghost" type="button" disabled={!password} onClick={() => loadSites(password).catch(fail)}>
-            Refresh
-          </button>
-        </div>
+        {error && <Alert>{error}</Alert>}
 
-        {sites === null && <div className="empty">Enter the password, then refresh.</div>}
-        {sites?.length === 0 && <div className="empty">Nothing published yet.</div>}
-
-        {sites?.map((site) => (
-          <div className="site-row" key={site.subdomain}>
-            <div>
-              <a href={siteUrl(site.subdomain)} target="_blank" rel="noreferrer">
-                {site.subdomain}.{ROOT_DOMAIN}
+        {result && (
+          <div className="result">
+            <div className="grow">
+              <a href={siteUrl(result.subdomain)} target="_blank" rel="noreferrer">
+                {result.subdomain}.{ROOT_DOMAIN}
               </a>
-              <div className="site-meta">
-                {site.files} files · {formatBytes(site.bytes)} · {new Date(site.updatedAt).toLocaleString()}
+              <div className="meta">
+                {plural(result.files, 'file')}
+                {result.pruned > 0 && ` · ${plural(result.pruned, 'stale file')} pruned`} ·{' '}
+                <Link href="/sites">manage</Link>
               </div>
             </div>
-            <button className="ghost" type="button" onClick={() => onDelete(site.subdomain)}>
-              Delete
-            </button>
+            <CopyLink url={siteUrl(result.subdomain)} />
+            <a
+              className="icon-btn"
+              href={siteUrl(result.subdomain)}
+              target="_blank"
+              rel="noreferrer"
+              title="Open site"
+            >
+              <External />
+            </a>
           </div>
-        ))}
-      </section>
+        )}
+      </form>
     </main>
   )
 }
