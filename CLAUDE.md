@@ -8,10 +8,25 @@ apps/web        Next.js app: drop page, /sites, API routes, proxy
 apps/raycast    Raycast extension (not published to the Store)
 packages/core   shared protocol; raw TS, no build step
 packages/cli    the `sitedrop` npm package
+skills/         the agent skill for driving the CLI (not a workspace)
 ```
 
 `bun run dev | build | typecheck` fan out through turbo. `bun run drop` runs the CLI
 from source.
+
+## skills/
+
+`skills/sitedrop/SKILL.md` teaches a coding agent to publish with the CLI. It lives here
+rather than in a dotfiles repo because it documents `packages/cli`'s interface — flags,
+the `prepare.ts` rules, the `Live at` output line — so a CLI change and its skill update
+are one commit. Consumers install it straight from this repo:
+
+```bash
+npx skills add pratikpakhale/sitedrop -g -s sitedrop
+```
+
+Keep it free of machine-specific values: it names `SITEDROP_ENDPOINT`/`SITEDROP_PASSWORD`
+but must never carry them.
 
 ## packages/core
 

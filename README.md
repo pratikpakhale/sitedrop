@@ -21,6 +21,9 @@ Turborepo with bun workspaces:
 
 `turbo dev`, `turbo build`, `turbo typecheck` from the root fan out.
 
+Outside the workspaces, `skills/sitedrop/` is an agent skill that documents the CLI
+for coding agents; `npx skills add pratikpakhale/sitedrop -g -s sitedrop` installs it.
+
 ## Setup
 
 1. `bun install`
