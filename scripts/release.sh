@@ -15,4 +15,4 @@ git add packages/cli/package.json
 git commit -m "chore(cli): release $version"
 git tag "$version"
 
-echo "tagged $version — push with: git push origin main $version"
+echo "tagged $version — merge it to main through a PR (merge commit), then: git push origin $version"

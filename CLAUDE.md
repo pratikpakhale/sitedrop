@@ -57,20 +57,28 @@ Note the server's own variable is `DROP_PASSWORD` — a deliberately separate na
 
 ```bash
 bun run release patch|minor|major   # bumps packages/cli, commits, tags
-git push origin main vX.Y.Z         # the tag is what triggers the workflow
+# open a PR, merge it with a merge commit, then:
+git push origin vX.Y.Z              # the tag is what triggers the workflow
 ```
 
 `.github/workflows/publish.yml` fires on `v*` tags only, checks the tag matches the CLI's
-version, builds, and runs `npm publish --provenance`. Pushing `main` alone publishes
-nothing.
+version, builds, and runs `npm publish`. Pushing `main` alone publishes nothing. The
+hook on `main` blocks direct pushes, so a release goes through a PR merged with a merge
+commit, never a squash, so the tagged commit lands on `main`. Push the tag after the
+merge.
 
-Two things break provenance publishes, both learned the hard way:
+Publishing uses npm trusted publishing (OIDC), with no token in the repo. npm trusts
+`publish.yml` in `pratikpakhale/sitedrop`, which was set up once with
+`npm trust github sitedrop --file publish.yml --repo pratikpakhale/sitedrop --allow-publish`.
+The old `NPM_TOKEN` secret expired between releases and failed with a misleading `E404`
+on `PUT`; long-lived npm write tokens no longer exist, which is why it is gone.
+
+Things that break the publish:
 
 - `repository.url` in `packages/cli/package.json` must match the GitHub repo the workflow
-  runs in. Renaming the repo silently invalidates it.
-- `NPM_TOKEN` must be a **classic Automation token** (or a granular token scoped to *all*
-  packages). A classic Publish token demands an OTP and fails with `EOTP`; a package-scoped
-  granular token cannot create a new package and fails with `E403`.
+  runs in. Renaming the repo or the workflow file silently invalidates it, and so does
+  the trust relationship, which must then be revoked and recreated.
+- Trusted publishing needs npm >= 11.5.1, so the workflow pins node 24.
 
 ## apps/web
 
