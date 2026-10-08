@@ -4,14 +4,14 @@
 
 
 Drop a folder or a `.zip` of static files, get a live site on a subdomain.
-Files live in a Cloudflare R2 bucket; a Next.js proxy maps `<name>.site.pakhale.com` onto
+Files live in a Cloudflare R2 bucket; a host rewrite maps `<name>.site.pakhale.com` onto
 `sites/<name>/` and streams the assets back.
 
 ## Layout
 
 Turborepo with bun workspaces:
 
-- `apps/web` — the Next.js app: drop page, `/sites`, API routes, proxy.
+- `apps/web` — the Next.js app: drop page, `/sites`, API routes, the site route.
 - `apps/raycast` — the Raycast extension.
 - `packages/core` — the shared protocol: prepare, publish, keys, mime,
   subdomain rules. TypeScript source, no build step; the web app transpiles

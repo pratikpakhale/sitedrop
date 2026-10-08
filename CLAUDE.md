@@ -1,10 +1,10 @@
 # sitedrop
 
 Turborepo with bun workspaces. Password-gated static-site drops: files land in a
-Cloudflare R2 bucket, a Next.js proxy serves them at `<subdomain>.site.pakhale.com`.
+Cloudflare R2 bucket, a Next.js route serves them at `<subdomain>.site.pakhale.com`.
 
 ```
-apps/web        Next.js app: drop page, /sites, API routes, proxy
+apps/web        Next.js app: drop page, /sites, API routes, site route
 apps/raycast    Raycast extension (not published to the Store)
 packages/core   shared protocol; raw TS, no build step
 packages/cli    the `sitedrop` npm package
@@ -81,11 +81,25 @@ Both `site.pakhale.com` and `*.site.pakhale.com` are attached; the wildcard cert
 Vercel's nameservers.
 
 The R2 bucket is private. An R2 custom domain would need the zone on Cloudflare, which
-the wildcard cert rules out, and `r2.dev` is rate-limited. So the proxy reads each object
-through a presigned GET. The bucket's CORS policy allows `PUT` with `content-type` from
+the wildcard cert rules out, and `r2.dev` is rate-limited. So the site route reads each
+object through a presigned GET. The bucket's CORS policy allows `PUT` with `content-type` from
 `*`. Without it, browser uploads fail while the CLI keeps working. The wildcard is
 deliberate: the presigned URL is the credential, and pinning origins only breaks preview
 deployments and local ports.
+
+Serving is built so a cache hit never runs code:
+
+- Tenant hosts reach `app/s/[subdomain]` through a `has: host` rewrite in
+  `next.config.ts`, not middleware. Vercel resolves static rewrites in its CDN, but
+  `proxy.ts` would run before the cache on every request.
+- Every site response, 404s included, carries `Vercel-CDN-Cache-Control` for a year and a
+  `site:<name>` cache tag. Each write (`/api/commit`, rename, delete) purges its tags
+  through `lib/cdn.ts`. A new write path that skips the purge serves stale files for a
+  year. Purges take about half a second to land, so a request fired straight after a
+  publish can still get the old copy; tests must poll rather than expect it instantly.
+  The cache key includes the deployment, so every deploy starts all sites cold.
+- The route refuses any request whose `Host` is not the tenant itself, so `/s/<name>` on
+  the apex, where the publish password lives, cannot run a tenant's scripts.
 
 `apps/web/lib/` is web-only (auth, storage, host parsing, browser file reading). Shared rules
 belong in core. Auth is a `Bearer <DROP_PASSWORD>` header compared with `timingSafeEqual`.
