@@ -18,7 +18,8 @@ jobs:
           bun-version: 1.2.4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # npm >= 11.5.1 publishes through OIDC trusted publishing; node 24 ships it.
+          node-version: 24
           registry-url: https://registry.npmjs.org
       - name: tag matches package version
         run: |
@@ -31,7 +32,7 @@ jobs:
       - run: bun run --cwd packages/cli typecheck
       - run: bun run --cwd packages/cli build
       - run: node packages/cli/dist/index.js --version
-      - run: npm publish --provenance --access public
+      # No token: npm trusts this workflow file (`npm trust github`) and mints a
+      # short-lived credential from the OIDC token. Provenance comes with it.
+      - run: npm publish --access public
         working-directory: packages/cli
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

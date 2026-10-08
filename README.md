@@ -74,8 +74,8 @@ The endpoint and password come from `--endpoint`/`--password` or the
 `SITEDROP_ENDPOINT`/`SITEDROP_PASSWORD` environment variables. Redeploying the same
 subdomain replaces the site and prunes files that are no longer part of it.
 Publishing to npm is tagged: push a `v*` tag and `.github/workflows/publish.yml`
-builds and publishes `packages/cli` with provenance (needs the `NPM_TOKEN`
-repo secret).
+builds and publishes `packages/cli` with provenance through npm trusted publishing,
+with no token involved.
 
 ## Rules
 
