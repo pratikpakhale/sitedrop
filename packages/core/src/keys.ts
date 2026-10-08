@@ -39,7 +39,7 @@ export function parseSiteKey(key: string): ParsedKey | null {
   return { subdomain, relPath }
 }
 
-/** Blob pathnames are URL path segments; encode each one so `#`, `?`, spaces survive. */
+/** Keys become URL path segments; encode each one so `#`, `?`, spaces survive. */
 export function encodeKey(key: string): string {
   return key.split('/').map(encodeURIComponent).join('/')
 }

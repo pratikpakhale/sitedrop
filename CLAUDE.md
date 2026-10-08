@@ -1,7 +1,7 @@
 # sitedrop
 
-Turborepo with bun workspaces. Password-gated static-site drops: files land in Vercel
-Blob, a Next.js proxy serves them at `<subdomain>.site.pakhale.com`.
+Turborepo with bun workspaces. Password-gated static-site drops: files land in a
+Cloudflare R2 bucket, a Next.js proxy serves them at `<subdomain>.site.pakhale.com`.
 
 ```
 apps/web        Next.js app: drop page, /sites, API routes, proxy
@@ -34,9 +34,10 @@ Runtime-agnostic on purpose. Every consumer imports subpaths (`@sitedrop/core/pr
 the exports map is `"./*": "./src/*.ts"`, so a new module needs no manifest change. The
 web app transpiles core via `transpilePackages`; the CLI and the extension bundle it.
 
-`publish.ts` uploads with `upload()` from `@vercel/blob/client`, which needs only the
-endpoint and the shared password. The server mints a scoped Blob token per file at
-`POST /api/upload`, so no client ever holds `BLOB_READ_WRITE_TOKEN`.
+`publish.ts` needs only the endpoint and the shared password, and uses plain `fetch`.
+`POST /api/upload` returns one presigned PUT URL per file, with the content type and
+exact byte length signed in, and clients upload straight to R2. No client ever holds R2
+credentials.
 
 `disk.ts` is the only module importing `node:*`. The CLI and the extension use it; the
 web app must not, or Node builtins reach the browser bundle. Keep new browser-hostile
@@ -73,11 +74,20 @@ Two things break provenance publishes, both learned the hard way:
 
 ## apps/web
 
-Vercel project with **Root Directory** `apps/web`. Needs `NEXT_PUBLIC_ROOT_DOMAIN`,
-`DROP_PASSWORD`, and a Blob store. Both `site.pakhale.com` and `*.site.pakhale.com` are
-attached; the wildcard cert requires Vercel's nameservers.
+Vercel project with **Root Directory** `apps/web`, linked to the GitHub repo: pushing
+`main` deploys production, other branches get previews. Needs `NEXT_PUBLIC_ROOT_DOMAIN`,
+`DROP_PASSWORD`, and `R2_ACCOUNT_ID`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`/`R2_BUCKET`.
+Both `site.pakhale.com` and `*.site.pakhale.com` are attached; the wildcard cert requires
+Vercel's nameservers.
 
-`apps/web/lib/` is web-only (auth, blob, host parsing, browser file reading). Shared rules
+The R2 bucket is private. An R2 custom domain would need the zone on Cloudflare, which
+the wildcard cert rules out, and `r2.dev` is rate-limited. So the proxy reads each object
+through a presigned GET. The bucket's CORS policy allows `PUT` with `content-type` from
+`*`. Without it, browser uploads fail while the CLI keeps working. The wildcard is
+deliberate: the presigned URL is the credential, and pinning origins only breaks preview
+deployments and local ports.
+
+`apps/web/lib/` is web-only (auth, storage, host parsing, browser file reading). Shared rules
 belong in core. Auth is a `Bearer <DROP_PASSWORD>` header compared with `timingSafeEqual`.
 
 `apps/web/.env.local` is a Vercel CLI pull and drifts; re-pull rather than trusting it.

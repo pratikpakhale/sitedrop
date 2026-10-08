@@ -1,5 +1,5 @@
 import { assertAuthorized, errorResponse } from '@/lib/auth'
-import { siteExists } from '@/lib/blob'
+import { siteExists } from '@/lib/storage'
 import { sitePrefix } from '@sitedrop/core/keys'
 import { randomSubdomain } from '@/lib/names'
 

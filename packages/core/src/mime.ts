@@ -60,7 +60,7 @@ export function extensionOf(pathname: string): string | null {
 }
 
 /**
- * Stored on the blob and pinned via `allowedContentTypes`, so it must match the
+ * Stored on the object and signed into its upload URL, so it must match the
  * client exactly. Unknown extensions fall back to `application/octet-stream`,
  * which browsers download rather than render — combined with `nosniff` on the
  * serving route, an unrecognised upload can never execute as markup.
@@ -70,7 +70,7 @@ export function baseContentTypeFor(pathname: string): string {
   return (ext && BASE_TYPES[ext]) || FALLBACK_TYPE
 }
 
-/** Sent to browsers. Always derived from the extension, never from the stored blob metadata. */
+/** Sent to browsers. Always derived from the extension, never from the stored object metadata. */
 export function contentTypeFor(pathname: string): string {
   const ext = extensionOf(pathname)
   const base = baseContentTypeFor(pathname)
