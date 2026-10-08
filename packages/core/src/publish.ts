@@ -1,11 +1,12 @@
-import { upload } from '@vercel/blob/client'
 import { MAX_FILES_PER_SITE } from './config'
-import { siteKey } from './keys'
-import { baseContentTypeFor } from './mime'
 import { INDEX, type PublishFile } from './prepare'
 import { validateSubdomain } from './subdomain'
 
-const MULTIPART_THRESHOLD = 5 * 1024 * 1024
+/** Body of `POST /api/upload`. */
+export type UploadRequest = { subdomain: string; files: { relPath: string; size: number }[] }
+
+/** A presigned PUT for one file; `headers` are signed into `url` and must be sent verbatim. */
+export type UploadTarget = { relPath: string; url: string; headers: Record<string, string> }
 
 export async function requestName(endpoint: string, password: string): Promise<string> {
   const response = await fetch(`${endpoint}/api/name`, {
@@ -14,6 +15,27 @@ export async function requestName(endpoint: string, password: string): Promise<s
   const payload = (await response.json()) as { subdomain?: string; error?: string }
   if (!response.ok || !payload.subdomain) throw new Error(payload.error ?? 'Could not generate a name')
   return payload.subdomain
+}
+
+async function requestUploads(
+  endpoint: string,
+  password: string,
+  subdomain: string,
+  files: PublishFile[],
+): Promise<UploadTarget[]> {
+  const body: UploadRequest = {
+    subdomain,
+    files: files.map(({ relPath, body }) => ({ relPath, size: body.size })),
+  }
+  const response = await fetch(`${endpoint}/api/upload`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${password}`, 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+  const payload = (await response.json()) as { uploads?: UploadTarget[]; error?: string }
+  if (!response.ok || !payload.uploads) throw new Error(payload.error ?? `Upload failed (${response.status})`)
+  return payload.uploads
 }
 
 async function commit(
@@ -62,18 +84,14 @@ export async function publishSite(options: PublishOptions): Promise<PublishResul
     throw new Error(`No ${INDEX} at the root. Publish anyway to serve the files without a landing page.`)
   }
 
-  let done = 0
-  for (const { relPath, body } of files) {
-    await upload(siteKey(subdomain, relPath), body, {
-      access: 'public',
-      handleUploadUrl: `${endpoint}/api/upload`,
-      headers: { authorization: `Bearer ${password}` },
-      contentType: baseContentTypeFor(relPath),
-      multipart: body.size > MULTIPART_THRESHOLD,
-    })
+  const targets = await requestUploads(endpoint, password, subdomain, files)
 
-    done += 1
-    onProgress?.({ done, total: files.length, relPath })
+  for (const [i, { relPath, body }] of files.entries()) {
+    const { url, headers } = targets[i]!
+    const response = await fetch(url, { method: 'PUT', headers, body })
+    if (!response.ok) throw new Error(`Uploading ${relPath} failed (${response.status})`)
+
+    onProgress?.({ done: i + 1, total: files.length, relPath })
   }
 
   const result = await commit(endpoint, password, subdomain, files.map((file) => file.relPath), force)

@@ -1,6 +1,6 @@
 import { ROOT_DOMAIN } from './config'
 
-export function normalizeHost(host: string): string {
+function normalizeHost(host: string): string {
   return host.split(':')[0]!.trim().toLowerCase().replace(/\.$/, '')
 }
 

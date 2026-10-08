@@ -1,6 +1,7 @@
 import { assertAuthorized, errorResponse } from '@/lib/auth'
+import { purgeSites } from '@/lib/cdn'
 import { MAX_FILES_PER_SITE } from '@sitedrop/core/config'
-import { deletePathnames, listAll } from '@/lib/blob'
+import { deleteKeys, listAll } from '@/lib/storage'
 import { normalizeRelPath, siteKey, sitePrefix } from '@sitedrop/core/keys'
 import { INDEX } from '@sitedrop/core/prepare'
 import { validateSubdomain } from '@sitedrop/core/subdomain'
@@ -43,8 +44,9 @@ export async function POST(request: Request) {
     }
 
     const existing = await listAll(sitePrefix(subdomain))
-    const stale = existing.map((blob) => blob.pathname).filter((pathname) => !keep.has(pathname))
-    await deletePathnames(stale)
+    const stale = existing.map((object) => object.key).filter((key) => !keep.has(key))
+    await deleteKeys(stale)
+    await purgeSites(subdomain)
 
     return Response.json({ subdomain, files: keep.size, pruned: stale.length })
   } catch (error) {

@@ -4,7 +4,7 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"],
-      "env": ["NEXT_PUBLIC_ROOT_DOMAIN", "DROP_PASSWORD", "BLOB_*", "VERCEL_*"]
+      "env": ["NEXT_PUBLIC_ROOT_DOMAIN", "DROP_PASSWORD", "R2_*", "VERCEL_*"]
     },
     "typecheck": {
       "dependsOn": ["^build"]

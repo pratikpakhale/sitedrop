@@ -4,14 +4,14 @@
 
 
 Drop a folder or a `.zip` of static files, get a live site on a subdomain.
-Files live in Vercel Blob; a Next.js proxy maps `<name>.site.pakhale.com` onto
+Files live in a Cloudflare R2 bucket; a host rewrite maps `<name>.site.pakhale.com` onto
 `sites/<name>/` and streams the assets back.
 
 ## Layout
 
 Turborepo with bun workspaces:
 
-- `apps/web` — the Next.js app: drop page, `/sites`, API routes, proxy.
+- `apps/web` — the Next.js app: drop page, `/sites`, API routes, the site route.
 - `apps/raycast` — the Raycast extension.
 - `packages/core` — the shared protocol: prepare, publish, keys, mime,
   subdomain rules. TypeScript source, no build step; the web app transpiles
@@ -27,9 +27,13 @@ for coding agents; `npx skills add pratikpakhale/sitedrop -g -s sitedrop` instal
 ## Setup
 
 1. `bun install`
-2. Create a Vercel project with **Root Directory** `apps/web`, attach a
-   **Blob** store (sets `BLOB_READ_WRITE_TOKEN`).
-3. Set `NEXT_PUBLIC_ROOT_DOMAIN` and `DROP_PASSWORD` in the project's env vars.
+2. Create a private R2 bucket and an R2 API token with **Object Read & Write** on
+   that bucket only. Give the bucket a CORS policy allowing `PUT` with a
+   `content-type` header from any origin, since the drop page uploads to it
+   directly. The presigned URL is the credential, so `*` exposes nothing.
+3. Create a Vercel project with **Root Directory** `apps/web` and set
+   `NEXT_PUBLIC_ROOT_DOMAIN`, `DROP_PASSWORD`, and the four `R2_*` variables from
+   `apps/web/.env.example`.
 4. Add both `site.pakhale.com` and `*.site.pakhale.com` as domains on the project.
    The wildcard requires the domain to use Vercel's nameservers — Vercel needs
    DNS write access to answer the ACME DNS-01 challenge for the wildcard cert.

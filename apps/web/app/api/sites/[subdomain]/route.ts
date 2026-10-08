@@ -1,5 +1,6 @@
 import { assertAuthorized, errorResponse } from '@/lib/auth'
-import { deletePathnames, listAll, renameSite, siteExists } from '@/lib/blob'
+import { purgeSites } from '@/lib/cdn'
+import { deleteKeys, listAll, renameSite, siteExists } from '@/lib/storage'
 import { sitePrefix } from '@sitedrop/core/keys'
 import { validateSubdomain } from '@sitedrop/core/subdomain'
 
@@ -15,11 +16,12 @@ export async function DELETE(request: Request, context: Context) {
     const invalid = validateSubdomain(subdomain)
     if (invalid) throw new Error(`Subdomain "${subdomain}" is ${invalid}`)
 
-    const blobs = await listAll(sitePrefix(subdomain))
-    if (blobs.length === 0) return Response.json({ error: 'No such site' }, { status: 404 })
+    const objects = await listAll(sitePrefix(subdomain))
+    if (objects.length === 0) return Response.json({ error: 'No such site' }, { status: 404 })
 
-    await deletePathnames(blobs.map((blob) => blob.pathname))
-    return Response.json({ subdomain, deleted: blobs.length })
+    await deleteKeys(objects.map((object) => object.key))
+    await purgeSites(subdomain)
+    return Response.json({ subdomain, deleted: objects.length })
   } catch (error) {
     return errorResponse(error)
   }
@@ -46,6 +48,7 @@ export async function PATCH(request: Request, context: Context) {
     if (await siteExists(sitePrefix(to))) throw new Error(`Subdomain "${to}" is already taken`)
 
     const moved = await renameSite(subdomain, to)
+    await purgeSites(subdomain, to)
     return Response.json({ subdomain: to, moved })
   } catch (error) {
     return errorResponse(error)
